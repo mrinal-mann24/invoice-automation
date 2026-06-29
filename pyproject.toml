@@ -1,0 +1,39 @@
+[project]
+name = "invoice-automation"
+version = "2.0.0"
+description = "Automated invoice email processing — fetch attachments, send to GPT-4o, write to Google Sheets + Supabase"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "msgraph-sdk>=1.5.0",
+    "azure-identity>=1.17.0",
+    "gspread>=6.0.0",
+    "google-auth>=2.29.0",
+    "supabase>=2.4.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "openai>=1.35.0",
+    "python-dotenv>=1.0.0",
+    "pymupdf>=1.24.0",
+    "loguru>=0.7.0",
+    "tenacity>=8.3.0",
+    "python-dateutil>=2.9.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.14.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

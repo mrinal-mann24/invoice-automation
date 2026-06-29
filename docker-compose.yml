@@ -1,0 +1,8 @@
+services:
+  invoice-automation:
+    build: .
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./app/logs:/app/app/logs

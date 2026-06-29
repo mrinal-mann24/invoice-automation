@@ -1,0 +1,14 @@
+.env
+*.json
+!.env.example
+app/storage/
+app/output/
+app/logs/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.uv/
+dist/
+*.egg-info/
+.pytest_cache/
