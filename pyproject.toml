@@ -2,7 +2,6 @@
 name = "invoice-automation"
 version = "2.0.0"
 description = "Automated invoice email processing — fetch attachments, send to GPT-4o, write to Google Sheets + Supabase"
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "msgraph-sdk>=1.5.0",
