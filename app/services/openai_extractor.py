@@ -45,6 +45,7 @@ If the document type is Invoice, Professional Bill, Rent, Contract, Software, Ut
   "invoice_date": null,
   "vendor_name": null,
   "total_amount": null,
+  "currency_symbol": null,
   "bank_name": null,
   "payment_date": null,
   "vendor_bank_name": null,
@@ -56,6 +57,7 @@ Strict rules:
 - Dates must be in YYYY-MM-DD format. If only month/year visible use YYYY-MM-01.
 - Monetary values: plain number, no currency symbol, no commas (e.g. 44355.00). NEVER put a date in total_amount — if unsure, use null.
 - total_amount = the final grand total payable on the invoice (including taxes). It must be a number only.
+- currency_symbol = the symbol of the currency used on the invoice. Use exactly: "$" for USD, "€" for EUR, "₹" for INR, "£" for GBP. Detect from symbols or explicit currency text on the document. If genuinely unclear, use null.
 - payment_date = ONLY fill this if the document explicitly shows a date when payment was made or is due. If not clearly visible, use null. Do NOT guess or use invoice_date as payment_date.
 - Bank details: look for NEFT/RTGS instructions, "transfer to", "pay to" sections.
 - IFSC: typically looks like SBIN0007982 or ICIC0000002.
@@ -147,6 +149,7 @@ class OpenAIExtractor:
         row.invoice_date     = _str(data.get("invoice_date"))
         row.vendor           = _str(data.get("vendor_name"))
         row.net_amount       = _float(data.get("total_amount"))
+        row.currency_symbol  = _str(data.get("currency_symbol"))
         row.bank_name        = _str(data.get("bank_name"))
         row.payment_date     = _str(data.get("payment_date"))
         row.vendor_bank_name = _str(data.get("vendor_bank_name"))

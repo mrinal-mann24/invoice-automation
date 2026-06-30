@@ -43,6 +43,7 @@ class InvoiceRow(BaseModel):
     invoice_number: Optional[str] = None
     vendor: Optional[str] = None
     net_amount: Optional[float] = None   # total as printed on the bill
+    currency_symbol: Optional[str] = None # e.g. $, €, ₹, £
     bank_name: Optional[str] = None
     payment_date: Optional[str] = None
     vendor_bank_name: Optional[str] = None

@@ -80,12 +80,6 @@ class TestSheetsWriter:
         args = mock_ws.append_row.call_args[0][0]
         assert args[_HEADERS.index("TDS amount")] == ""
 
-    def test_status_always_paid(self):
-        writer, mock_ws = _make_writer()
-        writer.append(_make_row())
-        args = mock_ws.append_row.call_args[0][0]
-        assert args[_HEADERS.index("Status")] == "Paid"
-
     def test_none_fields_written_as_empty_string(self):
         row = _make_row()
         row.payment_date = None

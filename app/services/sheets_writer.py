@@ -23,7 +23,6 @@ _HEADERS = [
     "Invoice Number",
     "Vendor",
     "Amount",           # always blank — filled manually
-    "Status",
     "Company Name",
     "TDS amount",       # always blank — filled manually
     "Net amount",       # total as on the bill
@@ -78,10 +77,9 @@ class SheetsWriter:
             row.invoice_number or "",
             row.vendor or "",
             "",                                                      # Amount — blank
-            "",                                                      # Status — blank, filled manually
             row.company_name,
             "",                                                      # TDS amount — blank
-            str(row.net_amount) if row.net_amount is not None else "",   # Net amount
+            f"{row.currency_symbol}{row.net_amount}" if row.net_amount is not None else "",  # Net amount
             row.bank_name or "",
             row.payment_date or "",
             row.vendor_bank_name or "",
