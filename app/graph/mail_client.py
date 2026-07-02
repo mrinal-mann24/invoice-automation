@@ -98,6 +98,9 @@ class MailboxClient:
 
         result = []
         for att in response.value or []:
+            if getattr(att, "is_inline", False):
+                logger.debug("[{}] Skipping inline image: {}", self.label, att.name)
+                continue
             ext = Path(att.name or "").suffix.lower()
             if ext not in SUPPORTED_EXTENSIONS:
                 logger.debug("[{}] Skipping unsupported attachment: {}", self.label, att.name)

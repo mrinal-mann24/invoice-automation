@@ -71,15 +71,15 @@ async def process_mailbox(
                 continue
 
             if row.error:
-                logger.warning("[{}] Extraction error on {}: {}", client.label, att.filename, row.error)
-                # Still write error rows so they are visible for review
-            else:
-                logger.success(
-                    "[{}] {} → {} | Net: {}",
-                    client.label, att.filename,
-                    row.document_type or "?",
-                    row.net_amount or "?",
-                )
+                logger.warning("[{}] Extraction error on {} — skipping: {}", client.label, att.filename, row.error)
+                continue
+
+            logger.success(
+                "[{}] {} → {} | Net: {}",
+                client.label, att.filename,
+                row.document_type or "?",
+                row.net_amount or "?",
+            )
 
             # ── Dedup check ────────────────────────────────────────────
             if row.invoice_number and db.is_duplicate(row.invoice_number):

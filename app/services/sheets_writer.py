@@ -81,7 +81,7 @@ class SheetsWriter:
             "",                                                      # Status — blank, dropdown filled manually
             row.company_name,
             "",                                                      # TDS amount — blank
-            f"{row.currency_symbol}{row.net_amount}" if row.net_amount is not None else "",  # Net amount
+            f"{row.currency_symbol or ''}{row.net_amount}" if row.net_amount is not None else "",  # Net amount
             row.bank_name or "",
             row.payment_date or "",
             row.vendor_bank_name or "",
