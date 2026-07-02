@@ -7,11 +7,7 @@ from typing import Optional
 from azure.identity import ClientSecretCredential
 from loguru import logger
 from msgraph import GraphServiceClient
-from msgraph.generated.models.mail_folder import MailFolder
 from msgraph.generated.models.message import Message
-from msgraph.generated.users.item.messages.item.move.move_post_request_body import (
-    MovePostRequestBody,
-)
 from msgraph.generated.users.item.messages.messages_request_builder import (
     MessagesRequestBuilder,
 )
@@ -130,24 +126,8 @@ class MailboxClient:
             raise ValueError(f"No content_bytes for attachment {attachment_id}")
         return base64.b64decode(response.content_bytes)
 
-    async def ensure_processed_folder(self, folder_name: str) -> str:
-        try:
-            response = await self._client.users.by_user_id(self.user).mail_folders.get()
-            for folder in response.value or []:
-                if folder.display_name and folder.display_name.lower() == folder_name.lower():
-                    return folder.id
-        except Exception as exc:
-            logger.warning("[{}] Error listing folders: {}", self.label, exc)
-
-        new_folder = MailFolder()
-        new_folder.display_name = folder_name
-        created = await self._client.users.by_user_id(self.user).mail_folders.post(new_folder)
-        logger.info("[{}] Created folder: {}", self.label, folder_name)
-        return created.id
-
-    async def move_and_mark_read(self, message_id: str, folder_id: str) -> None:
-        # Mark as read first, then move — moving changes the message ID location
-        # so patching after move returns 404
+    async def mark_read(self, message_id: str) -> None:
+        # Stays in the Inbox — just flip isRead so it isn't picked up again next cycle
         try:
             patch = Message()
             patch.is_read = True
@@ -160,19 +140,3 @@ class MailboxClient:
             )
         except Exception as exc:
             logger.warning("[{}] Could not mark as read (non-fatal): {}", self.label, exc)
-
-        try:
-            body = MovePostRequestBody()
-            body.destination_id = folder_id
-            await (
-                self._client.users
-                .by_user_id(self.user)
-                .messages
-                .by_message_id(message_id)
-                .move
-                .post(body)
-            )
-            logger.debug("[{}] Moved to Processed Invoices: {}", self.label, message_id)
-        except Exception as exc:
-            # 404 means the message was already moved/deleted — data is safe in Excel
-            logger.warning("[{}] Could not move message (non-fatal): {}", self.label, exc)

@@ -27,7 +27,6 @@ async def process_mailbox(
     extractor: OpenAIExtractor,
     sheets: SheetsWriter,
     db: SupabaseWriter,
-    processed_folder_name: str,
 ) -> int:
     """Run the full pipeline for one mailbox. Returns count of rows written."""
     handler = AttachmentHandler(client)
@@ -38,16 +37,14 @@ async def process_mailbox(
         logger.info("[{}] No new unread emails", client.label)
         return 0
 
-    folder_id = await client.ensure_processed_folder(processed_folder_name)
-
     for email in emails:
         logger.info("[{}] Processing: '{}'", client.label, email.subject)
 
         attachments = await handler.download_for_email(email)
 
         # Mark as read immediately after download — prevents re-processing
-        # if a crash happens mid-extraction on the next run
-        await client.move_and_mark_read(email.message_id, folder_id)
+        # if a crash happens mid-extraction on the next run. Email stays in Inbox.
+        await client.mark_read(email.message_id)
 
         if not attachments:
             logger.info("[{}] No supported attachments in '{}'", client.label, email.subject)
@@ -102,11 +99,10 @@ async def poll_once(
     extractor: OpenAIExtractor,
     sheets: SheetsWriter,
     db: SupabaseWriter,
-    processed_folder_name: str,
 ) -> None:
     """Run one check across all mailboxes in parallel."""
     counts = await asyncio.gather(
-        *[process_mailbox(c, extractor, sheets, db, processed_folder_name) for c in clients],
+        *[process_mailbox(c, extractor, sheets, db) for c in clients],
         return_exceptions=True,
     )
     total = 0
@@ -159,7 +155,7 @@ async def run() -> None:
         cycle += 1
         logger.info("── Cycle #{} ──────────────────────────────────────────", cycle)
         try:
-            await poll_once(clients, extractor, sheets, db, settings.processed_folder_name)
+            await poll_once(clients, extractor, sheets, db)
         except Exception as exc:
             logger.error("Unexpected error in cycle {}: {}", cycle, exc)
 
