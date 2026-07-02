@@ -47,8 +47,10 @@ class AttachmentHandler:
         self, email: EmailRecord, meta: dict, save_dir: Path
     ) -> AttachmentRecord:
         local_path = save_dir / meta["name"]
-        if not local_path.exists():
+        if not local_path.exists() or local_path.stat().st_size == 0:
             data = await self._client.download_attachment(email.message_id, meta["id"])
+            if not data:
+                raise ValueError(f"Empty response downloading {meta['name']}")
             local_path.write_bytes(data)
             logger.debug(
                 "[{}] Saved {} ({} bytes)",
