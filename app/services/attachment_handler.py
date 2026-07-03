@@ -51,6 +51,7 @@ class AttachmentHandler:
             data = await self._client.download_attachment(email.message_id, meta["id"])
             if not data:
                 raise ValueError(f"Empty response downloading {meta['name']}")
+            _verify_bytes(meta["name"], data)
             local_path.write_bytes(data)
             logger.debug(
                 "[{}] Saved {} ({} bytes)",
@@ -65,4 +66,19 @@ class AttachmentHandler:
             filename=meta["name"],
             local_path=local_path,
             content_type=meta["content_type"],
+        )
+
+
+def _verify_bytes(name: str, data: bytes) -> None:
+    """
+    Reject downloads whose bytes don't match their extension *before* they land
+    on disk. A bad file that gets written would be cached (the exists() guard
+    skips re-download) and fail extraction every single cycle. Raising here means
+    nothing is written and the next cycle retries cleanly.
+    """
+    if Path(name).suffix.lower() == ".pdf" and not data.startswith(b"%PDF"):
+        preview = data[:16]
+        raise ValueError(
+            f"{name} is not a valid PDF (magic bytes: {preview!r}) — "
+            "likely a reference/item attachment or a corrupt download"
         )

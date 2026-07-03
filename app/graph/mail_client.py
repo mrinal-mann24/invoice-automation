@@ -1,5 +1,6 @@
 """Microsoft Graph mail operations for a single mailbox."""
 import base64
+import re
 from datetime import datetime, timezone, date
 from pathlib import Path
 from typing import Optional
@@ -17,6 +18,18 @@ from app.models.models import EmailRecord
 
 # Attachment types we care about — skip Excel/CSV/DOCX
 SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp"}
+
+# Only real file attachments carry downloadable contentBytes. itemAttachment
+# (an attached email/event) and referenceAttachment (a OneDrive/SharePoint link)
+# have no file bytes — trying to download them yields non-PDF junk that PyMuPDF
+# then fails to open ("Failed to open file as type pdf").
+FILE_ATTACHMENT_ODATA_TYPE = "#microsoft.graph.fileAttachment"
+
+# Graph autogenerates names like "ATT00001.jpg" for images that were inline in
+# the email body (signature logos, tracking pixels, header banners) but which it
+# fails to flag isInline=true — common on forwarded mail. These are never the
+# actual invoice; sending them to GPT just wastes calls and errors out.
+_INLINE_NAME_RE = re.compile(r"^ATT\d+\.\w+$", re.IGNORECASE)
 
 
 def build_client(cfg: MailboxConfig) -> GraphServiceClient:
@@ -97,6 +110,17 @@ class MailboxClient:
             if getattr(att, "is_inline", False):
                 logger.debug("[{}] Skipping inline image: {}", self.label, att.name)
                 continue
+            if att.name and _INLINE_NAME_RE.match(att.name):
+                logger.info("[{}] Skipping inline-style attachment: {}", self.label, att.name)
+                continue
+            odata_type = getattr(att, "odata_type", None)
+            if odata_type != FILE_ATTACHMENT_ODATA_TYPE:
+                # itemAttachment / referenceAttachment have no downloadable file bytes
+                logger.info(
+                    "[{}] Skipping non-file attachment ({}): {}",
+                    self.label, odata_type or "unknown type", att.name,
+                )
+                continue
             if not getattr(att, "size", 1) or att.size == 0:
                 logger.debug("[{}] Skipping zero-size attachment: {}", self.label, att.name)
                 continue
@@ -122,9 +146,10 @@ class MailboxClient:
             .by_attachment_id(attachment_id)
             .get()
         )
-        if response.content_bytes is None:
+        content_bytes = getattr(response, "content_bytes", None)
+        if content_bytes is None:
             raise ValueError(f"No content_bytes for attachment {attachment_id}")
-        return base64.b64decode(response.content_bytes)
+        return base64.b64decode(content_bytes)
 
     async def mark_read(self, message_id: str) -> None:
         # Stays in the Inbox — just flip isRead so it isn't picked up again next cycle

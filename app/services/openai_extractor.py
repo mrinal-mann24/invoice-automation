@@ -166,28 +166,35 @@ class OpenAIExtractor:
     def _pdf_to_images(self, path: Path) -> list[dict]:
         parts: list[dict] = []
         doc = fitz.open(str(path))
-        for page_num, page in enumerate(doc, start=1):
-            pix = page.get_pixmap(dpi=150)
-            b64 = base64.b64encode(pix.tobytes("png")).decode()
-            parts.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"},
-            })
-            logger.debug("Rendered page {}/{} of {}", page_num, len(doc), path.name)
-        doc.close()
+        try:
+            if doc.needs_pass:
+                raise ValueError("PDF is password-protected / encrypted")
+            for page_num, page in enumerate(doc, start=1):
+                pix = page.get_pixmap(dpi=150)
+                b64 = base64.b64encode(pix.tobytes("png")).decode()
+                parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"},
+                })
+                logger.debug("Rendered page {}/{} of {}", page_num, len(doc), path.name)
+        finally:
+            doc.close()
         return parts
 
     def _image_to_part(self, path: Path) -> dict:
-        mime_map = {
-            "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
-            "tiff": "image/tiff", "tif": "image/tiff",
-            "bmp": "image/bmp", "webp": "image/webp",
-        }
-        mime = mime_map.get(path.suffix.lower().lstrip("."), "image/png")
-        b64 = base64.b64encode(path.read_bytes()).decode()
+        # Normalize every image to PNG. GPT-4o only accepts png/jpeg/gif/webp —
+        # TIFF/BMP (and some malformed JPEGs) are rejected with a 400 if sent raw.
+        # Rendering through PyMuPDF also validates the bytes are a real image.
+        doc = fitz.open(str(path))
+        try:
+            pix = doc[0].get_pixmap(dpi=150)
+            png_bytes = pix.tobytes("png")
+        finally:
+            doc.close()
+        b64 = base64.b64encode(png_bytes).decode()
         return {
             "type": "image_url",
-            "image_url": {"url": f"data:{mime};base64,{b64}", "detail": "high"},
+            "image_url": {"url": f"data:image/png;base64,{b64}", "detail": "high"},
         }
 
 
