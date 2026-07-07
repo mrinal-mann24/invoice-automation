@@ -40,14 +40,25 @@ async def process_mailbox(
     for email in emails:
         logger.info("[{}] Processing: '{}'", client.label, email.subject)
 
-        attachments = await handler.download_for_email(email)
+        download = await handler.download_for_email(email)
+        attachments = download.records
 
-        # Mark as read immediately after download — prevents re-processing
-        # if a crash happens mid-extraction on the next run. Email stays in Inbox.
-        await client.mark_read(email.message_id)
+        # Only mark as read when nothing failed. If an attachment came back
+        # encrypted or failed to download, leave the email UNREAD so it is
+        # retried automatically on a later cycle (e.g. once the M365 encryption
+        # policy is fixed) instead of being silently dropped. Emails with no
+        # download failures are safe to mark read so they aren't re-processed.
+        extraction_failed = False
 
         if not attachments:
-            logger.info("[{}] No supported attachments in '{}'", client.label, email.subject)
+            if download.had_failures:
+                logger.warning(
+                    "[{}] Left UNREAD — attachment download failed in '{}'; will retry next cycle.",
+                    client.label, email.subject,
+                )
+            else:
+                logger.info("[{}] No supported attachments in '{}'", client.label, email.subject)
+                await client.mark_read(email.message_id)
             continue
 
         for att in attachments:
@@ -68,6 +79,7 @@ async def process_mailbox(
                 continue
 
             if row.error:
+                extraction_failed = True
                 logger.warning("[{}] Extraction error on {} — skipping: {}", client.label, att.filename, row.error)
                 continue
 
@@ -90,6 +102,17 @@ async def process_mailbox(
             db.insert(row)
             sheets.append(row)
             rows_written += 1
+
+        # Mark read only if every attachment processed cleanly. A transient
+        # extraction failure (e.g. GPT error) leaves the email unread so the
+        # next cycle retries it rather than losing the invoice silently.
+        if extraction_failed or download.had_failures:
+            logger.warning(
+                "[{}] Left UNREAD for retry — one or more attachments failed in '{}'",
+                client.label, email.subject,
+            )
+        else:
+            await client.mark_read(email.message_id)
 
     return rows_written
 

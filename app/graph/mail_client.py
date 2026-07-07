@@ -32,6 +32,43 @@ FILE_ATTACHMENT_ODATA_TYPE = "#microsoft.graph.fileAttachment"
 _INLINE_NAME_RE = re.compile(r"^ATT\d+\.\w+$", re.IGNORECASE)
 
 
+# Base64 alphabet (+ padding/whitespace). Real file bytes (a PDF starts with
+# the byte 0x25 '%', an image with 0xFF, etc.) contain values outside this set
+# almost immediately, so this cleanly tells "base64 text" apart from raw bytes.
+_B64_ALPHABET = set(
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n"
+)
+
+
+def _decode_content_bytes(content_bytes) -> bytes:
+    """Return the real file bytes from Graph's `content_bytes`.
+
+    Depending on the msgraph/kiota SDK version, `content_bytes` may arrive as:
+      1. raw file bytes (already decoded)            -> return as-is
+      2. base64 TEXT stored in a bytes object        -> b64decode
+      3. base64 TEXT stored in a str                 -> b64decode
+    We decide by looking at the CONTENT, not the Python type: a base64 payload
+    of a PDF starts with 'JVBERi' ('%PDF' encoded); raw PDF bytes start with
+    b'%PDF'. Type-only checks got this wrong (str-only decoding left case 2
+    broken and produced invalid PDFs).
+    """
+    if isinstance(content_bytes, str):
+        return base64.b64decode(content_bytes)
+
+    data = bytes(content_bytes)
+    # Already a real file? Common headers never look like base64 text.
+    if data.startswith((b"%PDF", b"\xff\xd8", b"\x89PNG", b"GIF8", b"BM", b"II*\x00", b"MM\x00*", b"RIFF")):
+        return data
+    # Otherwise, if every byte is in the base64 alphabet it's base64 text -> decode.
+    sample = data[:512]
+    if sample and all(b in _B64_ALPHABET for b in sample):
+        try:
+            return base64.b64decode(data)
+        except Exception:
+            return data
+    return data
+
+
 def build_client(cfg: MailboxConfig) -> GraphServiceClient:
     credential = ClientSecretCredential(
         tenant_id=cfg.tenant_id,
@@ -149,7 +186,7 @@ class MailboxClient:
         content_bytes = getattr(response, "content_bytes", None)
         if content_bytes is None:
             raise ValueError(f"No content_bytes for attachment {attachment_id}")
-        return base64.b64decode(content_bytes)
+        return _decode_content_bytes(content_bytes)
 
     async def mark_read(self, message_id: str) -> None:
         # Stays in the Inbox — just flip isRead so it isn't picked up again next cycle

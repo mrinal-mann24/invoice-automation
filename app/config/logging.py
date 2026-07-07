@@ -7,6 +7,15 @@ def configure_logging() -> None:
     settings = get_settings()
     settings.logs_dir.mkdir(parents=True, exist_ok=True)
 
+    # On Windows the console is often cp1252, which can't encode the emoji/box
+    # characters in our log messages (→, ✅, ─) and raises UnicodeEncodeError
+    # inside Loguru's sink. Force the stdout stream to UTF-8 and replace any
+    # remaining unencodable chars instead of crashing the log call.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
     logger.remove()
     logger.add(
         sys.stdout,
