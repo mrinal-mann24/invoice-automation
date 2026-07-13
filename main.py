@@ -19,7 +19,7 @@ from app.services.openai_extractor import OpenAIExtractor
 from app.services.sheets_writer import SheetsWriter
 from app.services.supabase_client import SupabaseWriter
 
-POLL_INTERVAL_MINUTES = 1
+POLL_INTERVAL_MINUTES = 30
 
 
 async def process_mailbox(
